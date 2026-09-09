@@ -6,16 +6,19 @@ create table if not exists public.flv_app_state (
 
 alter table public.flv_app_state enable row level security;
 
+drop policy if exists "FLV operators can read shared state" on public.flv_app_state;
 create policy "FLV operators can read shared state"
   on public.flv_app_state for select
   to anon, authenticated
   using (true);
 
+drop policy if exists "FLV operators can insert shared state" on public.flv_app_state;
 create policy "FLV operators can insert shared state"
   on public.flv_app_state for insert
   to anon, authenticated
   with check (true);
 
+drop policy if exists "FLV operators can update shared state" on public.flv_app_state;
 create policy "FLV operators can update shared state"
   on public.flv_app_state for update
   to anon, authenticated
@@ -26,4 +29,14 @@ insert into public.flv_app_state (id, payload)
 values ('main', '{"cargas":[],"fornecedores":[]}'::jsonb)
 on conflict (id) do nothing;
 
-alter publication supabase_realtime add table public.flv_app_state;
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'flv_app_state'
+  ) then
+    alter publication supabase_realtime add table public.flv_app_state;
+  end if;
+end $$;
