@@ -73,20 +73,19 @@
   .stat-action{font:inherit;color:inherit;cursor:pointer;}
   .stat-action:hover{background:rgba(255,255,255,.16);}
   .backup-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
-  .backup-status{
-    font-size:12px;
-    color:#e8eef5;
-    display:flex;
-    align-items:center;
-    gap:6px;
-    padding:4px 10px;
-    background:rgba(255,255,255,.08);
-    border-radius:20px;
-    border:1px solid rgba(255,255,255,.18);
+  .menu-backup{position:relative;}
+  .menu-backup-dropdown{
+    position:absolute;right:0;top:calc(100% + 6px);
+    background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);
+    min-width:200px;z-index:60;overflow:hidden;
   }
-  .dot{width:7px;height:7px;border-radius:50%;background:#8a94a3;flex:none;}
-  .dot.on{background:#3ddc84;}
-  .dot.warn{background:#ffb545;}
+  .menu-backup-dropdown[hidden]{display:none;}
+  .menu-item{
+    display:block;width:100%;box-sizing:border-box;text-align:left;padding:10px 14px;
+    border:none;background:#fff;color:var(--text);cursor:pointer;font-size:13.5px;font-weight:600;
+  }
+  .menu-item:hover{background:#f5f7fa;}
+  .menu-item + .menu-item{border-top:1px solid var(--border);}
 
   /* ---------- Buttons ---------- */
   .btn{
@@ -212,6 +211,28 @@
   .bulk-actions .field{min-width:220px;}
   .bulk-actions .selection-count{color:var(--muted);font-size:12.5px;margin-right:auto;padding-bottom:8px;}
   .select-item{width:16px;height:16px;vertical-align:middle;cursor:pointer;}
+  .select-all-inline{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text);padding-bottom:8px;}
+
+  .fornecedor-group{margin-bottom:20px;}
+  .fornecedor-group:last-child{margin-bottom:0;}
+  .fornecedor-group-title{
+    font-size:12.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.3px;
+    padding-bottom:8px;border-bottom:2px solid var(--border);margin-bottom:10px;
+  }
+  .fornecedor-group-title small{font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;font-size:11.5px;}
+  .carga-group{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;}
+  .carga-group:last-child{margin-bottom:0;}
+  .carga-header{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;width:100%;
+    padding:10px 14px;background:#fafbfc;border:none;cursor:pointer;text-align:left;font:inherit;color:inherit;
+  }
+  .carga-header:hover{background:#f2f4f7;}
+  .carga-header .chevron{display:inline-block;transition:transform .15s ease;color:var(--muted);flex:none;font-size:11px;}
+  .carga-header.expanded .chevron{transform:rotate(90deg);}
+  .carga-header .carga-main{font-weight:700;font-size:13.5px;}
+  .carga-header .carga-meta{color:var(--muted);font-size:12.5px;}
+  .carga-items-wrap{border-top:1px solid var(--border);overflow-x:auto;}
+  .carga-items-wrap table{margin:0;}
 
   .empty-state{
     text-align:center;padding:48px 20px;color:var(--muted);
@@ -272,13 +293,16 @@
   </div>
   <div class="stats-row" id="statsRow"></div>
   <div class="backup-controls">
-    <span class="backup-status" id="backupStatus"><span class="dot" id="backupDot"></span><span id="backupStatusText">Backup automático não configurado</span></span>
-    <button class="btn btn-ghost-light btn-sm" id="btnAtivarBackup">Ativar backup automático</button>
-    <button class="btn btn-ghost-light btn-sm" id="btnExportarAgora">Baixar planilha agora</button>
-    <label class="btn btn-ghost-light btn-sm" style="margin:0;">
-      Importar planilha
-      <input type="file" id="inputImportar" accept=".xlsx" style="display:none;">
-    </label>
+    <div class="menu-backup">
+      <button class="btn btn-ghost-light btn-sm" id="btnMenuBackup">Backup ▾</button>
+      <div class="menu-backup-dropdown" id="menuBackupDropdown" hidden>
+        <button type="button" class="menu-item" id="btnExportarAgora">Baixar planilha agora</button>
+        <label class="menu-item" for="inputImportar">
+          Importar planilha
+          <input type="file" id="inputImportar" accept=".xlsx" style="display:none;">
+        </label>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -327,7 +351,6 @@
       </div>
       <div class="actions">
         <button class="btn btn-sm" id="btnEditarCargaAtiva">Editar dados da carga</button>
-        <button class="btn btn-primary btn-sm" id="btnSalvarCargaBackup">Salvar carga no backup</button>
         <button class="btn btn-sm" id="btnTrocarCarga">Trocar / iniciar outra carga</button>
       </div>
     </div>
@@ -356,6 +379,7 @@
               <option>Pulmão</option>
               <option>Seleção inversa</option>
               <option>Bandejas</option>
+              <option>Estoque</option>
             </select>
           </div>
           <div class="field"><label>Caixas separadas p/ cozinha (se houver)</label><input type="number" min="0" id="itCaixasCozinha"></div>
@@ -427,6 +451,7 @@
             <option>Pulmão</option>
             <option>Seleção inversa</option>
             <option>Bandejas</option>
+              <option>Estoque</option>
           </select>
         </div>
         <div class="field"><label>Nº NF de devolução</label><input type="text" id="fNfDevolucao" placeholder="Buscar..."></div>
@@ -438,6 +463,10 @@
 
     <div class="card">
       <div class="bulk-actions">
+        <label class="select-all-inline">
+          <input class="select-item" type="checkbox" id="selecionarTodosConsulta" title="Selecionar todos os itens filtrados">
+          Selecionar todos os itens filtrados
+        </label>
         <div class="field">
           <label for="statusEmMassa">Alterar status dos itens selecionados</label>
           <select id="statusEmMassa">
@@ -454,18 +483,8 @@
         <span class="selection-count" id="selectionCount">0 itens selecionados</span>
         <button class="btn btn-primary" id="btnAplicarStatus">Aplicar status</button>
       </div>
-      <div class="table-wrap">
-        <table id="tabelaConsulta">
-          <thead>
-            <tr>
-              <th><input class="select-item" type="checkbox" id="selecionarTodosConsulta" title="Selecionar todos os itens visíveis"> Ações</th><th>Data</th><th>Fornecedor</th><th>Nº carga</th><th>PLU</th><th class="desc">Descrição</th>
-              <th>Embalagem</th><th>Qtd</th><th>Lote</th><th>Tipo</th><th>Cx cozinha</th><th>Cx devolvidas</th>
-              <th>Sobra</th><th>NF devolução</th><th>NF assinada</th><th>Status</th><th>NF entrada</th>
-              <th>Horário</th><th class="obs">Observação</th>
-            </tr>
-          </thead>
-          <tbody id="tbodyConsulta"></tbody>
-        </table>
+      <div id="tabelaConsulta">
+        <div id="tbodyConsulta"></div>
       </div>
       <div class="empty-state" id="emptyConsulta" hidden>
         <b>Nenhuma carga cadastrada ainda.</b>
@@ -517,6 +536,7 @@
               <option>Pulmão</option>
               <option>Seleção inversa</option>
               <option>Bandejas</option>
+              <option>Estoque</option>
             </select>
           </div>
           <div class="field"><label>Caixas p/ cozinha</label><input type="number" min="0" id="emCaixasCozinha"></div>
@@ -603,8 +623,6 @@
   /* ============ Constantes ============ */
   var STORAGE_KEY = "flv_cargas_backup_v1";
   var DRAFT_KEY = "flv_cargas_draft_v1";
-  var DB_NAME = "flv_backup_db";
-  var STORE_NAME = "handles";
   var STATUS_CLASS = {
     "Em contagem":"st-blue",
     "Aguardando ajuste de lote/Liberada":"st-amber",
@@ -614,6 +632,7 @@
     "Estoque":"st-green",
     "Avaliação pela qualidade":"st-purple"
   };
+  var STATUS_ORDER = Object.keys(STATUS_CLASS).concat(["Status misto"]);
   var PENDENCIA_BASE = ["plu","descricao","embalagem","quantidadeRecebida","tipoCarga","status","nfEntrada","horarioGeracao"];
 
   /* ============ Estado ============ */
@@ -621,12 +640,12 @@
   var currentCargaId = null;
   var editItemRef = null; // {cargaId, itemId} - modal de item
   var editCargaRef = null; // {cargaId} - modal de carga
-  var fileHandle = null;
-  var backupTimer = null;
   var toastTimer = null;
   var activeTab = "cadastro";
   var selectedItems = {};
+  var expandedCargas = {};
   var supabaseClient = null;
+  var lastSentUpdatedAt = null; // evita que o eco da própria gravação sobrescreva edições mais novas
   var realtimeChannel = null;
   var filters = { dataDe:"", dataAte:"", descricao:"", fornecedor:"", tipoCarga:"", nfDevolucao:"" };
 
@@ -667,6 +686,22 @@
     saveState();
     toast("Fornecedor removido da lista.");
   }
+  function renomearFornecedor(nomeAntigo){
+    var novoNome = prompt('Novo nome para "'+nomeAntigo+'":', nomeAntigo);
+    if(novoNome===null) return; // cancelado
+    novoNome = normalizarFornecedor(novoNome);
+    if(!novoNome){ toast("O nome não pode ficar em branco.", true); return; }
+    if(novoNome===nomeAntigo) return;
+    if(fornecedorExiste(novoNome)){ toast("Já existe um fornecedor com esse nome.", true); return; }
+    state.fornecedores = state.fornecedores.map(function(f){ return f===nomeAntigo ? novoNome : f; })
+      .sort(function(a,b){ return a.localeCompare(b,"pt-BR"); });
+    var cargasAtualizadas = 0;
+    state.cargas.forEach(function(c){
+      if(c.fornecedor===nomeAntigo){ c.fornecedor = novoNome; cargasAtualizadas++; }
+    });
+    saveState();
+    toast('Fornecedor renomeado para "'+novoNome+'"'+(cargasAtualizadas>0 ? " ("+cargasAtualizadas+" carga(s) atualizada(s))." : "."));
+  }
 
   function missingFields(item){
     var missing = [];
@@ -703,7 +738,6 @@
   }
   function saveState(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    scheduleBackupWrite();
     saveRemoteState();
     renderAll();
   }
@@ -717,10 +751,12 @@
 
   function saveRemoteState(){
     if(!supabaseClient) return;
+    var updatedAt = new Date().toISOString();
+    lastSentUpdatedAt = updatedAt;
     supabaseClient.from("flv_app_state").upsert({
       id: "main",
       payload: state,
-      updated_at: new Date().toISOString()
+      updated_at: updatedAt
     }).then(function(result){
       if(result.error) console.error("Falha ao sincronizar com Supabase:", result.error);
     });
@@ -747,6 +783,7 @@
     realtimeChannel = supabaseClient.channel("flv-app-state")
       .on("postgres_changes", {event:"UPDATE", schema:"public", table:"flv_app_state", filter:"id=eq.main"}, function(change){
         if(!change.new || !change.new.payload || !Array.isArray(change.new.payload.cargas)) return;
+        if(change.new.updated_at && lastSentUpdatedAt && new Date(change.new.updated_at).getTime()===new Date(lastSentUpdatedAt).getTime()) return; // eco da propria gravacao, ja aplicado localmente
         state = change.new.payload;
         if(!Array.isArray(state.fornecedores)) state.fornecedores = [];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -794,47 +831,6 @@
     }catch(e){
       localStorage.removeItem(DRAFT_KEY);
     }
-  }
-
-  function salvarCargaNoBackup(){
-    saveDraft();
-    if(!fileHandle){
-      baixarPlanilhaAgora();
-      return;
-    }
-    writeBackupToHandle().then(function(){
-      toast("Carga salva no backup.");
-    });
-  }
-
-  /* ============ IndexedDB (guardar handle do arquivo de backup) ============ */
-  function idbOpen(){
-    return new Promise(function(resolve,reject){
-      var req = indexedDB.open(DB_NAME,1);
-      req.onupgradeneeded = function(){ req.result.createObjectStore(STORE_NAME); };
-      req.onsuccess = function(){ resolve(req.result); };
-      req.onerror = function(){ reject(req.error); };
-    });
-  }
-  function idbSaveHandle(handle){
-    return idbOpen().then(function(db){
-      return new Promise(function(resolve,reject){
-        var tx = db.transaction(STORE_NAME,"readwrite");
-        tx.objectStore(STORE_NAME).put(handle,"backupFile");
-        tx.oncomplete = function(){ resolve(); };
-        tx.onerror = function(){ reject(tx.error); };
-      });
-    });
-  }
-  function idbLoadHandle(){
-    return idbOpen().then(function(db){
-      return new Promise(function(resolve){
-        var tx = db.transaction(STORE_NAME,"readonly");
-        var req = tx.objectStore(STORE_NAME).get("backupFile");
-        req.onsuccess = function(){ resolve(req.result || null); };
-        req.onerror = function(){ resolve(null); };
-      });
-    });
   }
 
   /* ============ Planilha (SheetJS) ============ */
@@ -891,72 +887,6 @@
     var wb = buildWorkbook();
     XLSX.writeFile(wb, "backup_cargas_FLV.xlsx");
     toast("Planilha baixada.");
-  }
-
-  function writeBackupToHandle(){
-    if(!fileHandle) return Promise.resolve();
-    return fileHandle.queryPermission({mode:"readwrite"}).then(function(perm){
-      if(perm!=="granted") throw new Error("sem-permissao");
-      var wb = buildWorkbook();
-      var wbout = XLSX.write(wb, {bookType:"xlsx", type:"array"});
-      return fileHandle.createWritable().then(function(writable){
-        return writable.write(wbout).then(function(){ return writable.close(); });
-      });
-    }).then(function(){
-      updateBackupStatus(true);
-    }).catch(function(err){
-      updateBackupStatus(false, err && err.message==="sem-permissao");
-    });
-  }
-
-  function scheduleBackupWrite(){
-    if(!fileHandle) return;
-    clearTimeout(backupTimer);
-    backupTimer = setTimeout(writeBackupToHandle, 700);
-  }
-
-  function ativarBackupAutomatico(){
-    if(!window.showSaveFilePicker){
-      toast("Este navegador não permite salvar automaticamente num arquivo local. Use 'Baixar planilha agora' e salve manualmente na pasta desejada.", true);
-      return;
-    }
-    window.showSaveFilePicker({
-      suggestedName: "backup_cargas_FLV.xlsx",
-      types: [{ description: "Planilha Excel", accept: {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"]} }]
-    }).then(function(handle){
-      fileHandle = handle;
-      return idbSaveHandle(handle);
-    }).then(function(){
-      return writeBackupToHandle();
-    }).then(function(){
-      toast("Backup automático ativado. A planilha será atualizada a cada alteração.");
-    }).catch(function(err){
-      if(err && err.name!=="AbortError"){ toast("Não foi possível ativar o backup automático.", true); }
-    });
-  }
-
-  function updateBackupStatus(ok, needsPermission){
-    var dot = document.getElementById("backupDot");
-    var text = document.getElementById("backupStatusText");
-    if(!fileHandle){
-      dot.className = "dot";
-      text.textContent = "Backup automático não configurado";
-      return;
-    }
-    if(needsPermission){
-      dot.className = "dot warn";
-      text.textContent = "Clique em 'Ativar backup automático' para reconectar";
-      return;
-    }
-    if(ok){
-      dot.className = "dot on";
-      var now = new Date();
-      var hh = (now.getHours()+"").padStart(2,"0"), mm=(now.getMinutes()+"").padStart(2,"0");
-      text.textContent = "Backup salvo automaticamente (" + hh + ":" + mm + ")";
-    } else {
-      dot.className = "dot warn";
-      text.textContent = "Falha ao gravar backup automático";
-    }
   }
 
   function importarPlanilha(file){
@@ -1027,6 +957,12 @@
 
   /* ============ Renderização ============ */
   function getCarga(id){ return state.cargas.find(function(c){ return c.id===id; }); }
+  function getCargaStatus(carga){
+    if(!Array.isArray(carga.itens) || carga.itens.length===0) return null;
+    var primeiro = carga.itens[0].status || "Em contagem";
+    var misto = carga.itens.some(function(it){ return (it.status||"Em contagem")!==primeiro; });
+    return misto ? "Status misto" : primeiro;
+  }
 
   function renderFornecedoresDatalist(){
     var dl = document.getElementById("fornecedoresList");
@@ -1043,6 +979,7 @@
       state.fornecedores.map(function(f){
         var qtd = state.cargas.filter(function(c){ return c.fornecedor===f; }).length;
         return '<tr><td>'+escapeHtml(f)+'</td><td class="num">'+qtd+'</td><td class="row-actions">'+
+          '<button class="icon-btn" title="Renomear" data-rename-fornecedor="'+escapeHtml(f)+'">✎</button>'+
           '<button class="icon-btn danger" title="Remover" data-del-fornecedor="'+escapeHtml(f)+'">🗑</button></td></tr>';
       }).join("") + '</tbody></table></div>';
   }
@@ -1050,14 +987,18 @@
   function renderStats(){
     var cargasComItens = state.cargas.filter(function(c){ return Array.isArray(c.itens) && c.itens.length>0; });
     var totalCargas = cargasComItens.length;
-    var itens = getFlatRows();
-    var totalItens = itens.length;
-    var pendentes = itens.filter(function(it){ return missingFields(it).length>0; }).length;
+    var porStatus = {};
+    cargasComItens.forEach(function(c){
+      var st = getCargaStatus(c);
+      porStatus[st] = (porStatus[st]||0) + 1;
+    });
+    var chipsStatus = STATUS_ORDER.filter(function(st){ return porStatus[st]>0; }).map(function(st){
+      return '<div class="stat-chip"><b class="num">'+porStatus[st]+'</b><small>'+escapeHtml(st)+'</small></div>';
+    }).join("");
     var el = document.getElementById("statsRow");
     el.innerHTML =
       '<button type="button" class="stat-chip stat-action" data-open-resumo-cargas><b class="num">'+totalCargas+'</b><small>cargas</small></button>'+
-      '<div class="stat-chip"><b class="num">'+totalItens+'</b><small>itens</small></div>'+
-      '<div class="stat-chip"><b class="num">'+pendentes+'</b><small>com pendência</small></div>';
+      chipsStatus;
   }
 
   function renderResumoCargas(){
@@ -1143,39 +1084,92 @@
 
   function renderConsulta(){
     var rows = applyFilters(getFlatRows());
-    rows.sort(function(a,b){
-      if(a.dataRecebimento!==b.dataRecebimento) return (b.dataRecebimento||"").localeCompare(a.dataRecebimento||"");
-      return (a.fornecedor||"").localeCompare(b.fornecedor||"");
-    });
 
     var tbody = document.getElementById("tbodyConsulta");
     var empty = document.getElementById("emptyConsulta");
-    var table = document.getElementById("tabelaConsulta");
+    var wrap = document.getElementById("tabelaConsulta");
     var selectAll = document.getElementById("selecionarTodosConsulta");
 
     if(rows.length===0){
       tbody.innerHTML = "";
-      table.style.display = state.cargas.some(function(c){ return c.itens && c.itens.length>0; }) ? "table" : "none";
+      wrap.style.display = "none";
       selectAll.checked = false;
       selectAll.indeterminate = false;
-      empty.hidden = state.cargas.length!==0 && rows.length>0;
-      empty.hidden = !(rows.length===0);
+      empty.hidden = false;
       empty.querySelector("b").textContent = state.cargas.some(function(c){ return c.itens && c.itens.length>0; }) ? "Nenhum item encontrado para os filtros aplicados." : "Nenhuma carga cadastrada ainda.";
     } else {
-      table.style.display = "table";
+      wrap.style.display = "block";
       empty.hidden = true;
-      tbody.innerHTML = rows.map(function(r){
+
+      var porFornecedor = {};
+      rows.forEach(function(r){
+        var forn = r.fornecedor || "Sem fornecedor";
+        if(!porFornecedor[forn]) porFornecedor[forn] = {};
+        if(!porFornecedor[forn][r.cargaId]){
+          porFornecedor[forn][r.cargaId] = { cargaId:r.cargaId, numeroCarga:r.numeroCarga, dataRecebimento:r.dataRecebimento, itens:[] };
+        }
+        porFornecedor[forn][r.cargaId].itens.push(r);
+      });
+      var fornecedores = Object.keys(porFornecedor).sort(function(a,b){ return a.localeCompare(b,"pt-BR"); });
+
+      tbody.innerHTML = fornecedores.map(function(forn){
+        var cargasObj = porFornecedor[forn];
+        var cargaIds = Object.keys(cargasObj).sort(function(a,b){
+          return (cargasObj[b].dataRecebimento||"").localeCompare(cargasObj[a].dataRecebimento||"");
+        });
+        var totalItensForn = cargaIds.reduce(function(acc,id){ return acc + cargasObj[id].itens.length; }, 0);
+
+        var cargasHtml = cargaIds.map(function(cargaId){
+          var grupo = cargasObj[cargaId];
+          var cargaCompleta = getCarga(cargaId);
+          var statusCarga = cargaCompleta ? getCargaStatus(cargaCompleta) : null;
+          var stClass = statusCarga ? (STATUS_CLASS[statusCarga] || "st-blue") : "tipo";
+          var sobraTotal = grupo.itens.reduce(function(acc,it){ return acc + calcSobra(it.quantidadeRecebida,it.caixasCozinha,it.caixasDevolvidas); }, 0);
+          var expandido = !!expandedCargas[cargaId];
+          return '<div class="carga-group">'+
+            '<button type="button" class="carga-header'+(expandido?" expanded":"")+'" data-toggle-carga="'+cargaId+'">'+
+              '<span class="chevron">▶</span>'+
+              '<span class="carga-main">'+fmtDateBR(grupo.dataRecebimento)+(grupo.numeroCarga ? " · Nº "+escapeHtml(grupo.numeroCarga) : "")+'</span>'+
+              '<span class="carga-meta">'+grupo.itens.length+(grupo.itens.length===1?" item":" itens")+' · sobra '+sobraTotal+'</span>'+
+              (statusCarga ? '<span class="badge '+stClass+'">'+escapeHtml(statusCarga)+'</span>' : '')+
+            '</button>'+
+            (expandido ? '<div class="carga-items-wrap">'+renderItensDaCargaConsulta(grupo.itens)+'</div>' : '')+
+          '</div>';
+        }).join("");
+
+        return '<div class="fornecedor-group">'+
+          '<div class="fornecedor-group-title">'+escapeHtml(forn)+' <small>'+cargaIds.length+(cargaIds.length===1?" carga · ":" cargas · ")+totalItensForn+(totalItensForn===1?" item":" itens")+'</small></div>'+
+          cargasHtml+
+        '</div>';
+      }).join("");
+
+      var selectedVisible = rows.filter(function(r){ return selectedItems[r.cargaId+"|"+r.id]; }).length;
+      selectAll.checked = selectedVisible===rows.length;
+      selectAll.indeterminate = selectedVisible>0 && selectedVisible<rows.length;
+    }
+    updateSelectionCount();
+
+    var totalSobra = rows.reduce(function(acc,r){ return acc + calcSobra(r.quantidadeRecebida,r.caixasCozinha,r.caixasDevolvidas); }, 0);
+    document.getElementById("summaryRow").innerHTML =
+      '<div class="summary-chip"><b class="num">'+rows.length+'</b><small>itens filtrados</small></div>'+
+      '<div class="summary-chip"><b class="num">'+totalSobra+'</b><small>sobra de caixas (total)</small></div>';
+  }
+
+  function renderItensDaCargaConsulta(itens){
+    return '<table><thead><tr>'+
+      '<th>Ações</th><th>PLU</th><th class="desc">Descrição</th><th>Embalagem</th><th>Qtd</th><th>Lote</th><th>Tipo</th>'+
+      '<th>Cx cozinha</th><th>Cx devolvidas</th><th>Sobra</th><th>NF devolução</th><th>NF assinada</th>'+
+      '<th>Status</th><th>NF entrada</th><th>Horário</th><th class="obs">Observação</th>'+
+      '</tr></thead><tbody>'+
+      itens.map(function(r){
         var sobra = calcSobra(r.quantidadeRecebida, r.caixasCozinha, r.caixasDevolvidas);
         var stClass = STATUS_CLASS[r.status] || "st-blue";
         var itemRef = r.cargaId+"|"+r.id;
         return '<tr>'+
-          '<td class="row-actions"><input class="select-item" type="checkbox" data-select-item="'+itemRef+'"'+(selectedItems[itemRef]?" checked":"")+'>'+ 
-            '<button class="icon-btn" title="Editar" data-edit-consulta="'+r.cargaId+'|'+r.id+'">✎</button>'+
-            '<button class="icon-btn danger" title="Excluir" data-del-consulta="'+r.cargaId+'|'+r.id+'">🗑</button>'+
+          '<td class="row-actions"><input class="select-item" type="checkbox" data-select-item="'+itemRef+'"'+(selectedItems[itemRef]?" checked":"")+'>'+
+            '<button class="icon-btn" title="Editar" data-edit-consulta="'+itemRef+'">✎</button>'+
+            '<button class="icon-btn danger" title="Excluir" data-del-consulta="'+itemRef+'">🗑</button>'+
           '</td>'+
-          '<td class="num">'+fmtDateBR(r.dataRecebimento)+'</td>'+
-          '<td>'+escapeHtml(r.fornecedor)+'</td>'+
-          '<td>'+escapeHtml(r.numeroCarga)+'</td>'+
           '<td class="num">'+escapeHtml(r.plu)+'</td>'+
           '<td class="desc">'+escapeHtml(r.descricao)+'</td>'+
           '<td>'+escapeHtml(r.embalagem)+'</td>'+
@@ -1192,19 +1186,8 @@
           '<td>'+escapeHtml(r.horarioGeracao)+'</td>'+
           '<td class="obs">'+escapeHtml(r.observacao)+'</td>'+
         '</tr>';
-      }).join("");
-      var selectedVisible = rows.filter(function(r){ return selectedItems[r.cargaId+"|"+r.id]; }).length;
-      selectAll.checked = selectedVisible===rows.length;
-      selectAll.indeterminate = selectedVisible>0 && selectedVisible<rows.length;
-    }
-    updateSelectionCount();
-
-    var totalSobra = rows.reduce(function(acc,r){ return acc + calcSobra(r.quantidadeRecebida,r.caixasCozinha,r.caixasDevolvidas); }, 0);
-    var pendentes = rows.filter(function(r){ return missingFields(r).length>0; }).length;
-    document.getElementById("summaryRow").innerHTML =
-      '<div class="summary-chip"><b class="num">'+rows.length+'</b><small>itens filtrados</small></div>'+
-      '<div class="summary-chip"><b class="num">'+totalSobra+'</b><small>sobra de caixas (total)</small></div>'+
-      '<div class="summary-chip"><b class="num">'+pendentes+'</b><small>itens com pendência</small></div>';
+      }).join("") +
+      '</tbody></table>';
   }
 
   function renderAll(){
@@ -1429,6 +1412,13 @@
     var delRef = e.target.getAttribute("data-del-consulta");
     if(editRef){ var p = editRef.split("|"); abrirModalItem(p[0], p[1]); }
     if(delRef){ var d = delRef.split("|"); excluirItem(d[0], d[1]); }
+    var toggleBtn = e.target.closest("[data-toggle-carga]");
+    if(toggleBtn){
+      var cargaId = toggleBtn.getAttribute("data-toggle-carga");
+      if(expandedCargas[cargaId]) delete expandedCargas[cargaId];
+      else expandedCargas[cargaId] = true;
+      renderConsulta();
+    }
   });
 
   document.getElementById("tbodyConsulta").addEventListener("change", function(e){
@@ -1471,7 +1461,9 @@
 
   document.getElementById("listaFornecedores").addEventListener("click", function(e){
     var nome = e.target.getAttribute("data-del-fornecedor");
+    var renomear = e.target.getAttribute("data-rename-fornecedor");
     if(nome) removerFornecedor(nome);
+    if(renomear) renomearFornecedor(renomear);
   });
 
   /* ============ Controle geral de modais ============ */
@@ -1638,14 +1630,26 @@
     toast("Carga excluída.");
   });
 
-  /* ============ Backup: eventos globais ============ */
-  document.getElementById("btnAtivarBackup").addEventListener("click", ativarBackupAutomatico);
-  document.getElementById("btnSalvarCargaBackup").addEventListener("click", salvarCargaNoBackup);
-  document.getElementById("btnExportarAgora").addEventListener("click", baixarPlanilhaAgora);
+  /* ============ Backup: menu ============ */
+  function fecharMenuBackup(){ document.getElementById("menuBackupDropdown").hidden = true; }
+  document.getElementById("btnMenuBackup").addEventListener("click", function(e){
+    e.stopPropagation();
+    var dropdown = document.getElementById("menuBackupDropdown");
+    dropdown.hidden = !dropdown.hidden;
+  });
+  document.getElementById("menuBackupDropdown").addEventListener("click", function(e){ e.stopPropagation(); });
+  document.addEventListener("click", fecharMenuBackup);
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape") fecharMenuBackup(); });
+
+  document.getElementById("btnExportarAgora").addEventListener("click", function(){
+    baixarPlanilhaAgora();
+    fecharMenuBackup();
+  });
   document.getElementById("inputImportar").addEventListener("change", function(e){
     var file = e.target.files[0];
     if(file) importarPlanilha(file);
     e.target.value = "";
+    fecharMenuBackup();
   });
 
   /* ============ Tabs: eventos ============ */
@@ -1670,14 +1674,6 @@
         subscribeToRemoteState();
       }).catch(function(err){ console.error("Falha na sincronização inicial:", err); });
     }
-
-    idbLoadHandle().then(function(handle){
-      if(!handle) return;
-      fileHandle = handle;
-      return fileHandle.queryPermission({mode:"readwrite"}).then(function(perm){
-        updateBackupStatus(perm==="granted", perm!=="granted");
-      });
-    }).catch(function(){});
   }
 
   init();
