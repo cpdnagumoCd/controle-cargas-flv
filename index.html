@@ -898,23 +898,27 @@
         var ws = wb.Sheets[wb.SheetNames[0]];
         var rows = XLSX.utils.sheet_to_json(ws, {defval:""});
         if(rows.length===0){ toast("A planilha selecionada está vazia.", true); return; }
-        var ok = confirm("Importar esta planilha vai SUBSTITUIR todos os dados atuais do aplicativo. Deseja continuar?");
+        var ok = confirm("Importar vai ADICIONAR os dados desta planilha aos dados atuais (cargas e itens já existentes não são duplicados). Deseja continuar?");
         if(!ok) return;
 
-        var novaCargas = {};
+        var cargasNovas = 0, itensNovos = 0, itensIgnorados = 0;
+
         rows.forEach(function(row){
           var dataRec = String(row["Data de recebimento"]||"");
           var numeroCarga = String(row["Nº carga"]||"");
           var fornecedor = String(row["Fornecedor"]||"");
-          var key = dataRec+"|"+numeroCarga+"|"+fornecedor;
-          if(!novaCargas[key]){
-            novaCargas[key] = {
-              id: uid(), dataRecebimento: dataRec, numeroCarga: numeroCarga, fornecedor: fornecedor,
-              criadoEm: Date.now(), itens: []
-            };
+
+          var carga = state.cargas.find(function(c){
+            return c.dataRecebimento===dataRec && c.numeroCarga===numeroCarga && c.fornecedor===fornecedor;
+          });
+          if(!carga){
+            carga = { id: uid(), dataRecebimento: dataRec, numeroCarga: numeroCarga, fornecedor: fornecedor, criadoEm: Date.now(), itens: [] };
+            state.cargas.push(carga);
+            cargasNovas++;
           }
-          novaCargas[key].itens.push({
-            id: uid(),
+          if(fornecedor) adicionarFornecedor(fornecedor);
+
+          var novoItem = {
             plu: String(row["PLU"]||""),
             descricao: String(row["Descrição"]||""),
             embalagem: String(row["Embalagem"]||""),
@@ -928,14 +932,25 @@
             status: String(row["Status da carga"]||"Em contagem"),
             nfEntrada: String(row["NF de entrada"]||""),
             horarioGeracao: String(row["Horário de geração"]||""),
-            observacao: String(row["Observação"]||""),
-            criadoEm: Date.now()
+            observacao: String(row["Observação"]||"")
+          };
+
+          var jaExiste = carga.itens.some(function(it){
+            return it.plu===novoItem.plu && it.descricao===novoItem.descricao && it.embalagem===novoItem.embalagem &&
+              String(it.quantidadeRecebida)===String(novoItem.quantidadeRecebida) && it.lote===novoItem.lote &&
+              it.horarioGeracao===novoItem.horarioGeracao && it.nfEntrada===novoItem.nfEntrada;
           });
+          if(jaExiste){ itensIgnorados++; return; }
+
+          novoItem.id = uid();
+          novoItem.criadoEm = Date.now();
+          carga.itens.push(novoItem);
+          itensNovos++;
         });
-        state.cargas = Object.keys(novaCargas).map(function(k){ return novaCargas[k]; });
+
         currentCargaId = null;
         saveState();
-        toast("Planilha importada com sucesso: " + rows.length + " itens.");
+        toast(cargasNovas+" carga(s) nova(s), "+itensNovos+" item(ns) adicionado(s)"+(itensIgnorados>0 ? ", "+itensIgnorados+" já existente(s) ignorado(s)." : "."));
       }catch(err){
         console.error(err);
         toast("Não foi possível ler esta planilha.", true);
