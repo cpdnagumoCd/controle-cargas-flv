@@ -248,12 +248,14 @@
   .carga-group.st-green{border-left-color:var(--green);}
   .carga-group.st-purple{border-left-color:var(--purple);}
   .carga-group.st-mixed{border-left-color:#9aa4b2;}
+  .carga-header-row{display:flex;align-items:stretch;}
   .carga-header{
-    display:flex;align-items:center;gap:12px;flex-wrap:wrap;width:100%;
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex:1;min-width:0;
     padding:12px 16px;background:transparent;border:none;cursor:pointer;text-align:left;font:inherit;color:inherit;
     transition:background var(--dur) var(--ease);
   }
   .carga-header:hover{background:#f8f9fb;}
+  .carga-edit-btn{flex:none;align-self:center;margin-right:12px;}
   .carga-header .chevron{display:inline-flex;transition:transform .18s var(--ease);color:var(--muted);flex:none;font-size:11px;}
   .carga-header.expanded .chevron{transform:rotate(90deg);}
   .carga-header .carga-main{font-weight:700;font-size:13.5px;}
@@ -1196,12 +1198,15 @@
           var sobraTotal = grupo.itens.reduce(function(acc,it){ return acc + calcSobra(it.quantidadeRecebida,it.caixasCozinha,it.caixasDevolvidas); }, 0);
           var expandido = !!expandedCargas[cargaId];
           return '<div class="carga-group '+stClass+'">'+
-            '<button type="button" class="carga-header'+(expandido?" expanded":"")+'" data-toggle-carga="'+cargaId+'">'+
-              '<span class="chevron">▶</span>'+
-              '<span class="carga-main">'+fmtDateBR(grupo.dataRecebimento)+(grupo.numeroCarga ? " · Nº "+escapeHtml(grupo.numeroCarga) : "")+'</span>'+
-              '<span class="carga-meta">'+grupo.itens.length+(grupo.itens.length===1?" item":" itens")+' · sobra '+sobraTotal+'</span>'+
-              (statusCarga ? '<span class="badge '+stClass+'">'+escapeHtml(statusCarga)+'</span>' : '')+
-            '</button>'+
+            '<div class="carga-header-row">'+
+              '<button type="button" class="carga-header'+(expandido?" expanded":"")+'" data-toggle-carga="'+cargaId+'">'+
+                '<span class="chevron">▶</span>'+
+                '<span class="carga-main">'+fmtDateBR(grupo.dataRecebimento)+(grupo.numeroCarga ? " · Nº "+escapeHtml(grupo.numeroCarga) : "")+'</span>'+
+                '<span class="carga-meta">'+grupo.itens.length+(grupo.itens.length===1?" item":" itens")+' · sobra '+sobraTotal+'</span>'+
+                (statusCarga ? '<span class="badge '+stClass+'">'+escapeHtml(statusCarga)+'</span>' : '')+
+              '</button>'+
+              '<button type="button" class="icon-btn carga-edit-btn" title="Editar fornecedor, nº e data da carga" data-edit-carga="'+cargaId+'">✎</button>'+
+            '</div>'+
             (expandido ? '<div class="carga-items-wrap">'+renderItensDaCargaConsulta(grupo.itens)+'</div>' : '')+
           '</div>';
         }).join("");
@@ -1481,6 +1486,8 @@
     var delRef = e.target.getAttribute("data-del-consulta");
     if(editRef){ var p = editRef.split("|"); abrirModalItem(p[0], p[1]); }
     if(delRef){ var d = delRef.split("|"); excluirItem(d[0], d[1]); }
+    var editCargaBtn = e.target.closest("[data-edit-carga]");
+    if(editCargaBtn){ abrirModalCarga(editCargaBtn.getAttribute("data-edit-carga")); return; }
     var toggleBtn = e.target.closest("[data-toggle-carga]");
     if(toggleBtn){
       var cargaId = toggleBtn.getAttribute("data-toggle-carga");
