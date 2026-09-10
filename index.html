@@ -23,13 +23,20 @@
     --purple-100:#efe7fa;
     --blue:#1550ae;
     --blue-100:#e8f0fe;
-    --bg:#f2f4f7;
+    --bg:#f3f4f7;
     --card:#ffffff;
     --border:#dfe3e9;
     --text:#1b2430;
     --muted:#66707d;
     --radius:9px;
     --shadow:0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+    --shadow-md:0 4px 10px rgba(16,24,40,.08), 0 2px 4px rgba(16,24,40,.06);
+    --shadow-lg:0 16px 40px rgba(0,32,61,.18), 0 4px 12px rgba(0,32,61,.10);
+    --ease:cubic-bezier(.2,.7,.3,1);
+    --dur:.18s;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;}
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
@@ -70,14 +77,15 @@
   }
   .stat-chip b{display:block;font-size:16px;line-height:1.1;}
   .stat-chip small{font-size:11px;color:#bcd3ea;}
-  .stat-action{font:inherit;color:inherit;cursor:pointer;}
+  .stat-action{font:inherit;color:inherit;cursor:pointer;transition:background var(--dur) var(--ease);}
   .stat-action:hover{background:rgba(255,255,255,.16);}
   .backup-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
   .menu-backup{position:relative;}
   .menu-backup-dropdown{
     position:absolute;right:0;top:calc(100% + 6px);
-    background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow);
+    background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md);
     min-width:200px;z-index:60;overflow:hidden;
+    animation:fadeSlideIn .15s var(--ease);
   }
   .menu-backup-dropdown[hidden]{display:none;}
   .menu-item{
@@ -101,11 +109,12 @@
     align-items:center;
     gap:6px;
     white-space:nowrap;
+    transition:background var(--dur) var(--ease), border-color var(--dur) var(--ease), transform .1s var(--ease), box-shadow var(--dur) var(--ease);
   }
   .btn:hover{background:#f5f7fa;}
   .btn:active{transform:translateY(1px);}
   .btn-primary{background:var(--navy);border-color:var(--navy);color:#fff;}
-  .btn-primary:hover{background:var(--navy-700);}
+  .btn-primary:hover{background:var(--navy-700);box-shadow:0 2px 8px rgba(0,53,103,.25);}
   .btn-ghost-light{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);color:#fff;}
   .btn-ghost-light:hover{background:rgba(255,255,255,.16);}
   .btn-danger{background:#fff;border-color:var(--red);color:var(--red);}
@@ -116,6 +125,7 @@
     border:1px solid var(--border);background:#fff;border-radius:6px;
     width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;
     cursor:pointer;color:var(--muted);
+    transition:background var(--dur) var(--ease), color var(--dur) var(--ease), border-color var(--dur) var(--ease);
   }
   .icon-btn:hover{background:#f5f7fa;color:var(--text);}
   .icon-btn.danger:hover{background:var(--red-100);color:var(--red);border-color:var(--red);}
@@ -129,13 +139,15 @@
     border:none;background:transparent;padding:10px 16px;font-weight:600;
     font-size:14px;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;
     margin-bottom:-1px;
+    transition:color var(--dur) var(--ease), border-color var(--dur) var(--ease);
   }
   nav.tabs button.active{color:var(--navy);border-bottom-color:var(--navy);}
   nav.tabs button:hover{color:var(--navy-700);}
 
   main{padding:20px 24px 60px 24px;max-width:1600px;margin:0 auto;}
+  @keyframes fadeSlideIn{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
   .tab-panel{display:none;}
-  .tab-panel.active{display:block;}
+  .tab-panel.active{display:block;animation:fadeSlideIn .22s var(--ease);}
 
   .card{
     background:var(--card);
@@ -202,6 +214,7 @@
   .badge.st-red{background:var(--red-100);color:var(--red);}
   .badge.st-green{background:var(--green-100);color:var(--green);}
   .badge.st-purple{background:var(--purple-100);color:var(--purple);}
+  .badge.st-mixed{background:#eef1f5;color:#4b5563;border:1px dashed #c3cad4;}
   .badge.tipo{background:#eef1f5;color:#3a4453;}
   .badge.pend{background:var(--amber-100);color:var(--amber);border:1px solid var(--amber-border);}
   .badge.ok{background:var(--green-100);color:var(--green);}
@@ -213,25 +226,39 @@
   .select-item{width:16px;height:16px;vertical-align:middle;cursor:pointer;}
   .select-all-inline{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--text);padding-bottom:8px;}
 
-  .fornecedor-group{margin-bottom:20px;}
+  .fornecedor-group{margin-bottom:22px;}
   .fornecedor-group:last-child{margin-bottom:0;}
   .fornecedor-group-title{
-    font-size:12.5px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.3px;
-    padding-bottom:8px;border-bottom:2px solid var(--border);margin-bottom:10px;
+    display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
+    font-size:14px;font-weight:700;color:var(--navy);
+    padding-left:10px;border-left:3px solid var(--navy);
+    margin-bottom:10px;
   }
-  .fornecedor-group-title small{font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;font-size:11.5px;}
-  .carga-group{border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden;}
+  .fornecedor-group-title small{font-weight:600;color:var(--muted);font-size:12px;}
+  .carga-group{
+    background:#fff;border:1px solid var(--border);border-left:4px solid var(--border);
+    border-radius:8px;margin-bottom:8px;overflow:hidden;
+    transition:box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+  }
   .carga-group:last-child{margin-bottom:0;}
+  .carga-group:hover{box-shadow:var(--shadow-md);}
+  .carga-group.st-blue{border-left-color:var(--blue);}
+  .carga-group.st-amber{border-left-color:var(--amber);}
+  .carga-group.st-red{border-left-color:var(--red);}
+  .carga-group.st-green{border-left-color:var(--green);}
+  .carga-group.st-purple{border-left-color:var(--purple);}
+  .carga-group.st-mixed{border-left-color:#9aa4b2;}
   .carga-header{
     display:flex;align-items:center;gap:12px;flex-wrap:wrap;width:100%;
-    padding:10px 14px;background:#fafbfc;border:none;cursor:pointer;text-align:left;font:inherit;color:inherit;
+    padding:12px 16px;background:transparent;border:none;cursor:pointer;text-align:left;font:inherit;color:inherit;
+    transition:background var(--dur) var(--ease);
   }
-  .carga-header:hover{background:#f2f4f7;}
-  .carga-header .chevron{display:inline-block;transition:transform .15s ease;color:var(--muted);flex:none;font-size:11px;}
+  .carga-header:hover{background:#f8f9fb;}
+  .carga-header .chevron{display:inline-flex;transition:transform .18s var(--ease);color:var(--muted);flex:none;font-size:11px;}
   .carga-header.expanded .chevron{transform:rotate(90deg);}
   .carga-header .carga-main{font-weight:700;font-size:13.5px;}
   .carga-header .carga-meta{color:var(--muted);font-size:12.5px;}
-  .carga-items-wrap{border-top:1px solid var(--border);overflow-x:auto;}
+  .carga-items-wrap{border-top:1px solid var(--border);overflow-x:auto;animation:fadeSlideIn .2s var(--ease);}
   .carga-items-wrap table{margin:0;}
 
   .empty-state{
@@ -252,13 +279,17 @@
   .summary-chip small{color:var(--muted);font-size:11.5px;}
 
   /* Modal */
+  @keyframes modalBackdropIn{from{opacity:0;}to{opacity:1;}}
+  @keyframes modalBoxIn{from{opacity:0;transform:translateY(12px) scale(.98);}to{opacity:1;transform:translateY(0) scale(1);}}
   .modal-backdrop{
     position:fixed;inset:0;background:rgba(10,20,35,.45);display:flex;align-items:flex-start;justify-content:center;
     padding:30px 16px;overflow:auto;z-index:50;
+    animation:modalBackdropIn .18s var(--ease);
   }
   .modal-backdrop[hidden]{display:none;}
   .modal{
-    background:#fff;border-radius:12px;max-width:820px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.25);
+    background:#fff;border-radius:12px;max-width:820px;width:100%;box-shadow:var(--shadow-lg);
+    animation:modalBoxIn .22s var(--ease);
   }
   .modal-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border);}
   .modal-header h3{margin:0;font-size:15.5px;}
@@ -630,9 +661,10 @@
     "Liberada":"st-green",
     "Nota direta":"st-purple",
     "Estoque":"st-green",
-    "Avaliação pela qualidade":"st-purple"
+    "Avaliação pela qualidade":"st-purple",
+    "Status misto":"st-mixed"
   };
-  var STATUS_ORDER = Object.keys(STATUS_CLASS).concat(["Status misto"]);
+  var STATUS_ORDER = Object.keys(STATUS_CLASS);
   var PENDENCIA_BASE = ["plu","descricao","embalagem","quantidadeRecebida","tipoCarga","status","nfEntrada","horarioGeracao"];
 
   /* ============ Estado ============ */
@@ -749,13 +781,35 @@
     return true;
   }
 
+  function compactItem(item){
+    var out = {};
+    Object.keys(item).forEach(function(k){
+      var v = item[k];
+      if(v==="" || v===undefined || v===null) return;
+      out[k] = v;
+    });
+    return out;
+  }
+  function compactPayload(st){
+    return {
+      fornecedores: st.fornecedores,
+      cargas: (st.cargas||[]).map(function(c){
+        var out = { id: c.id, fornecedor: c.fornecedor, criadoEm: c.criadoEm };
+        if(c.dataRecebimento) out.dataRecebimento = c.dataRecebimento;
+        if(c.numeroCarga) out.numeroCarga = c.numeroCarga;
+        out.itens = (c.itens||[]).map(compactItem);
+        return out;
+      })
+    };
+  }
+
   function saveRemoteState(){
     if(!supabaseClient) return;
     var updatedAt = new Date().toISOString();
     lastSentUpdatedAt = updatedAt;
     supabaseClient.from("flv_app_state").upsert({
       id: "main",
-      payload: state,
+      payload: compactPayload(state),
       updated_at: updatedAt
     }).then(function(result){
       if(result.error) console.error("Falha ao sincronizar com Supabase:", result.error);
@@ -1138,10 +1192,10 @@
           var grupo = cargasObj[cargaId];
           var cargaCompleta = getCarga(cargaId);
           var statusCarga = cargaCompleta ? getCargaStatus(cargaCompleta) : null;
-          var stClass = statusCarga ? (STATUS_CLASS[statusCarga] || "st-blue") : "tipo";
+          var stClass = statusCarga ? (STATUS_CLASS[statusCarga] || "st-blue") : "";
           var sobraTotal = grupo.itens.reduce(function(acc,it){ return acc + calcSobra(it.quantidadeRecebida,it.caixasCozinha,it.caixasDevolvidas); }, 0);
           var expandido = !!expandedCargas[cargaId];
-          return '<div class="carga-group">'+
+          return '<div class="carga-group '+stClass+'">'+
             '<button type="button" class="carga-header'+(expandido?" expanded":"")+'" data-toggle-carga="'+cargaId+'">'+
               '<span class="chevron">▶</span>'+
               '<span class="carga-main">'+fmtDateBR(grupo.dataRecebimento)+(grupo.numeroCarga ? " · Nº "+escapeHtml(grupo.numeroCarga) : "")+'</span>'+
