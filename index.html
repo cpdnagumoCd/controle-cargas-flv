@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Controle de Cargas FLV — Nagumo</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 <style>
   :root{
     --navy:#003567;
@@ -680,9 +681,11 @@
   var activeTab = "cadastro";
   var selectedItems = {};
   var expandedCargas = {};
-  var supabaseClient = null;
-  var lastSentUpdatedAt = null; // evita que o eco da própria gravação sobrescreva edições mais novas
-  var realtimeChannel = null;
+  var firestoreDb = null;
+  var unsubscribeCargas = null;
+  var unsubscribeFornecedores = null;
+  var CARGAS_COLLECTION = "cargas";
+  var FORNECEDORES_DOC_PATH = "meta/fornecedores";
   var filters = { dataDe:"", dataAte:"", descricao:"", fornecedor:"", tipoCarga:"", nfDevolucao:"" };
 
   /* ============ Utilidades ============ */
@@ -734,10 +737,11 @@
     state.fornecedores = state.fornecedores.map(function(f){ return f===nomeAntigo ? novoNome : f; })
       .sort(function(a,b){ return a.localeCompare(b,"pt-BR"); });
     var cargasAtualizadas = 0;
+    var idsAfetados = [];
     state.cargas.forEach(function(c){
-      if(c.fornecedor===nomeAntigo){ c.fornecedor = novoNome; cargasAtualizadas++; }
+      if(c.fornecedor===nomeAntigo){ c.fornecedor = novoNome; cargasAtualizadas++; idsAfetados.push(c.id); }
     });
-    saveState();
+    saveState(idsAfetados);
     toast('Fornecedor renomeado para "'+novoNome+'"'+(cargasAtualizadas>0 ? " ("+cargasAtualizadas+" carga(s) atualizada(s))." : "."));
   }
 
@@ -774,17 +778,24 @@
     // migração: garante que fornecedores já usados em cargas antigas apareçam na lista gerenciada
     state.cargas.forEach(function(c){ adicionarFornecedor(c.fornecedor); });
   }
-  function saveState(){
+  function saveState(affectedCargaIds){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    saveRemoteState();
+    syncFornecedoresRemote();
+    (affectedCargaIds||[]).forEach(function(id){ syncCargaRemote(id); });
     renderAll();
   }
 
   function configureRemoteSync(){
-    var config = window.FLV_SUPABASE_CONFIG || {};
-    if(!window.supabase || !config.url || !config.anonKey || config.url.indexOf("COLE_")===0 || config.anonKey.indexOf("COLE_")===0) return false;
-    supabaseClient = window.supabase.createClient(config.url, config.anonKey);
-    return true;
+    var config = window.FLV_FIREBASE_CONFIG || {};
+    if(!window.firebase || !config.apiKey || !config.projectId || String(config.apiKey).indexOf("COLE_")===0) return false;
+    try{
+      firebase.initializeApp(config);
+      firestoreDb = firebase.firestore();
+      return true;
+    }catch(err){
+      console.error("Falha ao configurar o Firebase:", err);
+      return false;
+    }
   }
 
   function compactItem(item){
@@ -796,60 +807,76 @@
     });
     return out;
   }
-  function compactPayload(st){
-    return {
-      fornecedores: st.fornecedores,
-      cargas: (st.cargas||[]).map(function(c){
-        var out = { id: c.id, fornecedor: c.fornecedor, criadoEm: c.criadoEm };
-        if(c.dataRecebimento) out.dataRecebimento = c.dataRecebimento;
-        if(c.numeroCarga) out.numeroCarga = c.numeroCarga;
-        out.itens = (c.itens||[]).map(compactItem);
-        return out;
-      })
-    };
+  function compactCarga(c){
+    var out = { fornecedor: c.fornecedor||"", criadoEm: c.criadoEm||Date.now() };
+    if(c.dataRecebimento) out.dataRecebimento = c.dataRecebimento;
+    if(c.numeroCarga) out.numeroCarga = c.numeroCarga;
+    out.itens = (c.itens||[]).map(compactItem);
+    return out;
   }
 
-  function saveRemoteState(){
-    if(!supabaseClient) return;
-    var updatedAt = new Date().toISOString();
-    lastSentUpdatedAt = updatedAt;
-    supabaseClient.from("flv_app_state").upsert({
-      id: "main",
-      payload: compactPayload(state),
-      updated_at: updatedAt
-    }).then(function(result){
-      if(result.error) console.error("Falha ao sincronizar com Supabase:", result.error);
+  function syncCargaRemote(cargaId){
+    if(!firestoreDb) return;
+    var carga = getCarga(cargaId);
+    if(!carga) return;
+    firestoreDb.collection(CARGAS_COLLECTION).doc(cargaId).set(compactCarga(carga)).catch(function(err){
+      console.error("Falha ao sincronizar carga com o Firebase:", err);
     });
   }
 
-  function loadRemoteState(){
-    if(!supabaseClient) return Promise.resolve();
-    return supabaseClient.from("flv_app_state").select("payload").eq("id","main").maybeSingle().then(function(result){
-      if(result.error){
-        console.error("Falha ao carregar dados do Supabase:", result.error);
-        return;
-      }
-      if(result.data && result.data.payload && Array.isArray(result.data.payload.cargas)){
-        state = result.data.payload;
-        if(!Array.isArray(state.fornecedores)) state.fornecedores = [];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      }
+  function deleteCargaRemote(cargaId){
+    if(!firestoreDb) return;
+    firestoreDb.collection(CARGAS_COLLECTION).doc(cargaId).delete().catch(function(err){
+      console.error("Falha ao excluir carga no Firebase:", err);
+    });
+  }
+
+  function syncFornecedoresRemote(){
+    if(!firestoreDb) return;
+    firestoreDb.doc(FORNECEDORES_DOC_PATH).set({ lista: state.fornecedores }).catch(function(err){
+      console.error("Falha ao sincronizar fornecedores com o Firebase:", err);
     });
   }
 
   function subscribeToRemoteState(){
-    if(!supabaseClient) return;
-    if(realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
-    realtimeChannel = supabaseClient.channel("flv-app-state")
-      .on("postgres_changes", {event:"UPDATE", schema:"public", table:"flv_app_state", filter:"id=eq.main"}, function(change){
-        if(!change.new || !change.new.payload || !Array.isArray(change.new.payload.cargas)) return;
-        if(change.new.updated_at && lastSentUpdatedAt && new Date(change.new.updated_at).getTime()===new Date(lastSentUpdatedAt).getTime()) return; // eco da propria gravacao, ja aplicado localmente
-        state = change.new.payload;
-        if(!Array.isArray(state.fornecedores)) state.fornecedores = [];
+    if(!firestoreDb) return;
+    if(unsubscribeCargas) unsubscribeCargas();
+    if(unsubscribeFornecedores) unsubscribeFornecedores();
+
+    unsubscribeCargas = firestoreDb.collection(CARGAS_COLLECTION).onSnapshot({includeMetadataChanges:true}, function(snapshot){
+      var mudou = false;
+      snapshot.docChanges().forEach(function(change){
+        if(change.doc.metadata.hasPendingWrites) return; // eco da propria escrita local ainda nao confirmada - ignora
+        var id = change.doc.id;
+        if(change.type==="removed"){
+          var idx = state.cargas.findIndex(function(c){ return c.id===id; });
+          if(idx>=0){ state.cargas.splice(idx,1); mudou = true; }
+        } else {
+          var data = change.doc.data() || {};
+          var carga = Object.assign({ id: id, itens: [] }, data);
+          if(!Array.isArray(carga.itens)) carga.itens = [];
+          var idx2 = state.cargas.findIndex(function(c){ return c.id===id; });
+          if(idx2>=0) state.cargas[idx2] = carga; else state.cargas.push(carga);
+          mudou = true;
+        }
+      });
+      if(mudou){
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         renderAll();
-      })
-      .subscribe();
+      }
+    }, function(err){ console.error("Erro na assinatura de cargas (Firebase):", err); });
+
+    unsubscribeFornecedores = firestoreDb.doc(FORNECEDORES_DOC_PATH).onSnapshot({includeMetadataChanges:true}, function(doc){
+      if(doc.metadata.hasPendingWrites) return;
+      if(doc.exists){
+        var data = doc.data() || {};
+        if(Array.isArray(data.lista)){
+          state.fornecedores = data.lista;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          renderAll();
+        }
+      }
+    }, function(err){ console.error("Erro na assinatura de fornecedores (Firebase):", err); });
   }
 
   function saveDraft(){
@@ -963,6 +990,7 @@
         if(!ok) return;
 
         var cargasNovas = 0, itensNovos = 0, itensIgnorados = 0;
+        var idsAfetados = {};
 
         rows.forEach(function(row){
           var dataRec = String(row["Data de recebimento"]||"");
@@ -1008,10 +1036,11 @@
           novoItem.criadoEm = Date.now();
           carga.itens.push(novoItem);
           itensNovos++;
+          idsAfetados[carga.id] = true;
         });
 
         currentCargaId = null;
-        saveState();
+        saveState(Object.keys(idsAfetados));
         toast(cargasNovas+" carga(s) nova(s), "+itensNovos+" item(ns) adicionado(s)"+(itensIgnorados>0 ? ", "+itensIgnorados+" já existente(s) ignorado(s)." : "."));
       }catch(err){
         console.error(err);
@@ -1291,6 +1320,7 @@
     var refs = Object.keys(selectedItems);
     if(refs.length===0){ toast("Selecione pelo menos um item.", true); return; }
     if(!status){ toast("Selecione o novo status.", true); return; }
+    var idsAfetados = {};
     refs.forEach(function(ref){
       var parts = ref.split("|");
       var carga = getCarga(parts[0]);
@@ -1299,11 +1329,12 @@
       if(item){
         item.status = status;
         item.atualizadoEm = Date.now();
+        idsAfetados[parts[0]] = true;
       }
     });
     selectedItems = {};
     document.getElementById("statusEmMassa").value = "";
-    saveState();
+    saveState(Object.keys(idsAfetados));
     toast(refs.length + (refs.length===1 ? " item atualizado." : " itens atualizados."));
   }
 
@@ -1347,7 +1378,7 @@
           });
         });
         area.value = "";
-        saveState();
+        saveState([currentCargaId]);
         saveDraft();
         toast(lines.length + " itens adicionados. Complete os campos pendentes na lista abaixo.");
       }
@@ -1403,7 +1434,7 @@
     document.getElementById("cgNumero").value = "";
     document.getElementById("cgFornecedor").value = "";
     document.getElementById("cgData").value = todayISO();
-    saveState();
+    saveState([carga.id]);
     saveDraft();
     toast("Carga iniciada. Agora adicione os itens.");
     document.getElementById("itPlu").focus();
@@ -1456,7 +1487,7 @@
     };
     carga.itens.push(item);
     limparFormItem();
-    saveState();
+    saveState([currentCargaId]);
     saveDraft();
     var miss = missingFields(item);
     toast(miss.length>0 ? "Item adicionado com "+miss.length+" campo(s) pendente(s)." : "Item adicionado.");
@@ -1655,8 +1686,9 @@
     item.horarioGeracao = document.getElementById("emHorario").value;
     item.observacao = document.getElementById("emObservacao").value.trim();
     item.atualizadoEm = Date.now();
+    var cargaIdSalva = editItemRef.cargaId;
     fecharModalItem();
-    saveState();
+    saveState([cargaIdSalva]);
     toast("Item atualizado.");
   });
 
@@ -1672,7 +1704,7 @@
     if(!carga) return;
     if(!confirm("Excluir este item? Esta ação não pode ser desfeita.")) return;
     carga.itens = carga.itens.filter(function(it){ return it.id!==itemId; });
-    saveState();
+    saveState([cargaId]);
     toast("Item excluído.");
   }
 
@@ -1704,7 +1736,7 @@
     carga.numeroCarga = document.getElementById("ecNumero").value.trim();
     carga.fornecedor = fornecedor;
     fecharModalCarga();
-    saveState();
+    saveState([cargaId]);
     toast("Dados da carga atualizados.");
   });
 
@@ -1715,6 +1747,7 @@
     state.cargas = state.cargas.filter(function(c){ return c.id!==cargaId; });
     if(currentCargaId===cargaId) currentCargaId = null;
     fecharModalCarga();
+    deleteCargaRemote(cargaId);
     saveState();
     toast("Carga excluída.");
   });
@@ -1758,10 +1791,7 @@
     renderAll();
 
     if(configureRemoteSync()){
-      loadRemoteState().then(function(){
-        renderAll();
-        subscribeToRemoteState();
-      }).catch(function(err){ console.error("Falha na sincronização inicial:", err); });
+      subscribeToRemoteState();
     }
   }
 
