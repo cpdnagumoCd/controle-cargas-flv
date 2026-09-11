@@ -52,7 +52,6 @@ Se você já tem cargas cadastradas (vindas do armazenamento local ou do Supabas
 
 ## Publicar no GitHub Pages
 
-<<<<<<< HEAD
 1. Crie um repositório **público** no GitHub. No plano gratuito, o GitHub Pages não funciona em repositório privado.
 2. Garanta que os arquivos estão com estes nomes exatos na raiz do repositório:
    - `index.html` (o HTML da aplicação)
@@ -60,24 +59,11 @@ Se você já tem cargas cadastradas (vindas do armazenamento local ou do Supabas
    - `.nojekyll` (arquivo vazio — evita que o GitHub tente processar o site como Jekyll)
    - `firebase-config.js`
    - `firestore.rules` (só de referência — as regras de verdade ficam no console do Firebase, não neste arquivo)
-=======
-O ponto mais importante: o GitHub Pages só carrega automaticamente na URL principal um arquivo chamado **exatamente `index.html`**. Por isso o app deve ser commitado com esse nome (não `controle_cargas_flv.html`).
-
-1. Crie um repositório **público** no GitHub. No plano gratuito, o GitHub Pages não funciona em repositório privado.
-2. Instale o Git for Windows, se ainda não estiver instalado.
-3. Na pasta do projeto, garanta que os arquivos estão com estes nomes exatos:
-   - `index.html` (o HTML da aplicação, renomeado)
-   - `.gitignore`
-   - `.nojekyll` (arquivo vazio — evita que o GitHub tente processar o site como Jekyll e ignore pastas/arquivos que comecem com `_`)
-   - `supabase-config.js`
-   - `supabase-schema.sql`
->>>>>>> c373a137b384e61a0411a4d58030789efe4f05cd
    - `README.md`
 
    No Windows, o Explorer não deixa criar um arquivo começando com ponto direto pela interface. Use o PowerShell na pasta do projeto:
 
    ```powershell
-<<<<<<< HEAD
    New-Item .gitignore -ItemType File -Force
    New-Item .nojekyll -ItemType File -Force
    ```
@@ -88,26 +74,11 @@ O ponto mais importante: o GitHub Pages só carrega automaticamente na URL princ
 git init
 git add index.html .gitignore .nojekyll firebase-config.js firestore.rules README.md
 git commit -m "Publicar aplicacao com Firebase"
-=======
-   Rename-Item controle_cargas_flv.html index.html
-   New-Item .gitignore -ItemType File -Force
-   Set-Content .gitignore "backup_cargas_FLV.xlsx"
-   New-Item .nojekyll -ItemType File -Force
-   ```
-
-4. Execute:
-
-```powershell
-git init
-git add index.html .gitignore .nojekyll supabase-config.js supabase-schema.sql README.md
-git commit -m "Publicar aplicacao com Supabase"
->>>>>>> c373a137b384e61a0411a4d58030789efe4f05cd
 git branch -M main
 git remote add origin https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git
 git push -u origin main
 ```
 
-<<<<<<< HEAD
 4. No GitHub, abra **Settings > Pages**.
 5. Selecione **Deploy from a branch**, branch `main` e pasta `/ (root)`, e salve.
 6. Aguarde 1–2 minutos. A própria tela de **Settings > Pages** mostra uma faixa verde "Your site is live at ..." com o link quando terminar.
@@ -118,19 +89,6 @@ git push -u origin main
 - Confirme que o arquivo no repositório se chama `index.html` — sem isso, a URL raiz não mostra nada.
 - Confirme que o repositório está **público**.
 - Confirme em **Settings > Pages** que a branch/pasta selecionadas batem com onde os arquivos foram enviados.
-=======
-5. No GitHub, abra **Settings > Pages**.
-6. Selecione **Deploy from a branch**, branch `main` e pasta `/ (root)**`, e salve.
-7. Aguarde 1–2 minutos. A própria tela de **Settings > Pages** mostra uma faixa verde "Your site is live at ..." com o link quando terminar. Se continuar sem aparecer depois de alguns minutos, veja a aba **Actions** do repositório — ela mostra o log da publicação e aponta o erro, se houver.
-8. Acesse a URL informada pelo GitHub Pages (algo como `https://SEU_USUARIO.github.io/SEU_REPOSITORIO/`).
-
-### Se o site continuar não aparecendo
-
-- Confirme que o arquivo no repositório se chama `index.html` (não `controle_cargas_flv.html`) — sem isso, a URL raiz não mostra nada.
-- Confirme que o repositório está **público**.
-- Confirme em **Settings > Pages** que a branch/pasta selecionadas batem com onde os arquivos foram enviados.
-- Teste acessar `https://SEU_USUARIO.github.io/SEU_REPOSITORIO/index.html` direto — se isso funcionar mas a URL sem `/index.html` não, o problema é o nome do arquivo.
->>>>>>> c373a137b384e61a0411a4d58030789efe4f05cd
 
 ## Observações
 
