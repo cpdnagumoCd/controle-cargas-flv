@@ -1,8 +1,9 @@
-window.FLV_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyBSI8ADRglol_0pUCKYXeLyARDpkDJqDTk",
-  authDomain: "controle-flv-740df.firebaseapp.com",
-  projectId: "controle-flv-740df",
-  storageBucket: "controle-flv-740df.firebasestorage.app",
-  messagingSenderId: "654170136545",
-  appId: "1:654170136545:web:ff37d4910484ca966a7ca0"
-};
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAKz3L3cvbzrLWGb3avdUH2zWxGFM8ueLY",
+  authDomain: "controleflv-6ff35.firebaseapp.com",
+  projectId: "controleflv-6ff35",
+  storageBucket: "controleflv-6ff35.firebasestorage.app",
+  messagingSenderId: "560427118098",
+  appId: "1:560427118098:web:bf5eab74cbdc9d81c2f2cb",
+  measurementId: "G-WHET34698F"
