@@ -737,11 +737,10 @@
     state.fornecedores = state.fornecedores.map(function(f){ return f===nomeAntigo ? novoNome : f; })
       .sort(function(a,b){ return a.localeCompare(b,"pt-BR"); });
     var cargasAtualizadas = 0;
-    var idsAfetados = [];
     state.cargas.forEach(function(c){
-      if(c.fornecedor===nomeAntigo){ c.fornecedor = novoNome; cargasAtualizadas++; idsAfetados.push(c.id); }
+      if(c.fornecedor===nomeAntigo){ c.fornecedor = novoNome; cargasAtualizadas++; syncCargaHeaderRemote(c.id, { fornecedor: novoNome }); }
     });
-    saveState(idsAfetados);
+    saveState();
     toast('Fornecedor renomeado para "'+novoNome+'"'+(cargasAtualizadas>0 ? " ("+cargasAtualizadas+" carga(s) atualizada(s))." : "."));
   }
 
@@ -778,10 +777,9 @@
     // migração: garante que fornecedores já usados em cargas antigas apareçam na lista gerenciada
     state.cargas.forEach(function(c){ adicionarFornecedor(c.fornecedor); });
   }
-  function saveState(affectedCargaIds){
+  function saveState(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     syncFornecedoresRemote();
-    (affectedCargaIds||[]).forEach(function(id){ syncCargaRemote(id); });
     renderAll();
   }
 
@@ -807,20 +805,97 @@
     });
     return out;
   }
-  function compactCarga(c){
-    var out = { fornecedor: c.fornecedor||"", criadoEm: c.criadoEm||Date.now() };
-    if(c.dataRecebimento) out.dataRecebimento = c.dataRecebimento;
-    if(c.numeroCarga) out.numeroCarga = c.numeroCarga;
-    out.itens = (c.itens||[]).map(compactItem);
-    return out;
+
+  // Mutação transacional genérica: lê o estado atual no servidor, aplica só a mudança
+  // específica (via mutateFn) e grava de volta. Se outra gravação acontecer no meio do
+  // caminho, o Firestore refaz a transação automaticamente com os dados mais novos —
+  // por isso duas pessoas editando a mesma carga ao mesmo tempo não se sobrescrevem.
+  function syncCargaMutationRemote(cargaId, mutateFn){
+    if(!firestoreDb) return Promise.resolve();
+    var ref = firestoreDb.collection(CARGAS_COLLECTION).doc(cargaId);
+    return firestoreDb.runTransaction(function(tx){
+      return tx.get(ref).then(function(doc){
+        var fresh = doc.exists ? doc.data() : null;
+        var novo = mutateFn(fresh);
+        if(novo) tx.set(ref, novo);
+      });
+    }).catch(function(err){
+      console.error("Falha ao sincronizar carga com o Firebase:", err);
+    });
   }
 
-  function syncCargaRemote(cargaId){
+  function criarCargaRemota(carga){
     if(!firestoreDb) return;
-    var carga = getCarga(cargaId);
-    if(!carga) return;
-    firestoreDb.collection(CARGAS_COLLECTION).doc(cargaId).set(compactCarga(carga)).catch(function(err){
-      console.error("Falha ao sincronizar carga com o Firebase:", err);
+    var doc = { fornecedor: carga.fornecedor||"", criadoEm: carga.criadoEm||Date.now(), itens: (carga.itens||[]).map(compactItem) };
+    if(carga.dataRecebimento) doc.dataRecebimento = carga.dataRecebimento;
+    if(carga.numeroCarga) doc.numeroCarga = carga.numeroCarga;
+    firestoreDb.collection(CARGAS_COLLECTION).doc(carga.id).set(doc).catch(function(err){
+      console.error("Falha ao criar carga no Firebase:", err);
+    });
+  }
+
+  function syncItemAddRemote(cargaId, item){
+    var cargaLocal = getCarga(cargaId);
+    syncCargaMutationRemote(cargaId, function(fresh){
+      var base = fresh || { fornecedor: (cargaLocal&&cargaLocal.fornecedor)||"", criadoEm: (cargaLocal&&cargaLocal.criadoEm)||Date.now(), itens: [] };
+      if(cargaLocal && cargaLocal.dataRecebimento && !base.dataRecebimento) base.dataRecebimento = cargaLocal.dataRecebimento;
+      if(cargaLocal && cargaLocal.numeroCarga && !base.numeroCarga) base.numeroCarga = cargaLocal.numeroCarga;
+      var itens = Array.isArray(base.itens) ? base.itens.slice() : [];
+      itens.push(compactItem(item));
+      return Object.assign({}, base, { itens: itens });
+    });
+  }
+
+  function syncItensAddRemote(cargaId, novosItens){
+    if(!novosItens || novosItens.length===0) return;
+    var cargaLocal = getCarga(cargaId);
+    syncCargaMutationRemote(cargaId, function(fresh){
+      var base = fresh || { fornecedor: (cargaLocal&&cargaLocal.fornecedor)||"", criadoEm: (cargaLocal&&cargaLocal.criadoEm)||Date.now(), itens: [] };
+      if(cargaLocal && cargaLocal.dataRecebimento && !base.dataRecebimento) base.dataRecebimento = cargaLocal.dataRecebimento;
+      if(cargaLocal && cargaLocal.numeroCarga && !base.numeroCarga) base.numeroCarga = cargaLocal.numeroCarga;
+      var itens = Array.isArray(base.itens) ? base.itens.slice() : [];
+      novosItens.forEach(function(it){ itens.push(compactItem(it)); });
+      return Object.assign({}, base, { itens: itens });
+    });
+  }
+
+  function syncItemUpdateRemote(cargaId, itemId, updatedItem){
+    syncCargaMutationRemote(cargaId, function(fresh){
+      if(!fresh) return null;
+      var itens = (fresh.itens||[]).slice();
+      var idx = itens.findIndex(function(it){ return it.id===itemId; });
+      var compacted = compactItem(updatedItem);
+      if(idx>=0) itens[idx] = compacted; else itens.push(compacted);
+      return Object.assign({}, fresh, { itens: itens });
+    });
+  }
+
+  function syncItensUpdateRemote(cargaId, itensAtualizados){
+    if(!itensAtualizados || itensAtualizados.length===0) return;
+    syncCargaMutationRemote(cargaId, function(fresh){
+      if(!fresh) return null;
+      var itens = (fresh.itens||[]).slice();
+      itensAtualizados.forEach(function(updated){
+        var idx = itens.findIndex(function(it){ return it.id===updated.id; });
+        var compacted = compactItem(updated);
+        if(idx>=0) itens[idx] = compacted; else itens.push(compacted);
+      });
+      return Object.assign({}, fresh, { itens: itens });
+    });
+  }
+
+  function syncItemDeleteRemote(cargaId, itemId){
+    syncCargaMutationRemote(cargaId, function(fresh){
+      if(!fresh) return null;
+      var itens = (fresh.itens||[]).filter(function(it){ return it.id!==itemId; });
+      return Object.assign({}, fresh, { itens: itens });
+    });
+  }
+
+  function syncCargaHeaderRemote(cargaId, headerFields){
+    syncCargaMutationRemote(cargaId, function(fresh){
+      var base = fresh || { itens: [] };
+      return Object.assign({}, base, headerFields);
     });
   }
 
@@ -990,7 +1065,8 @@
         if(!ok) return;
 
         var cargasNovas = 0, itensNovos = 0, itensIgnorados = 0;
-        var idsAfetados = {};
+        var cargasNovasIds = {};
+        var itensNovosPorCarga = {};
 
         rows.forEach(function(row){
           var dataRec = String(row["Data de recebimento"]||"");
@@ -1004,6 +1080,7 @@
             carga = { id: uid(), dataRecebimento: dataRec, numeroCarga: numeroCarga, fornecedor: fornecedor, criadoEm: Date.now(), itens: [] };
             state.cargas.push(carga);
             cargasNovas++;
+            cargasNovasIds[carga.id] = true;
           }
           if(fornecedor) adicionarFornecedor(fornecedor);
 
@@ -1036,11 +1113,16 @@
           novoItem.criadoEm = Date.now();
           carga.itens.push(novoItem);
           itensNovos++;
-          idsAfetados[carga.id] = true;
+          if(!cargasNovasIds[carga.id]){
+            (itensNovosPorCarga[carga.id] = itensNovosPorCarga[carga.id]||[]).push(novoItem);
+          }
         });
 
+        Object.keys(cargasNovasIds).forEach(function(cargaId){ criarCargaRemota(getCarga(cargaId)); });
+        Object.keys(itensNovosPorCarga).forEach(function(cargaId){ syncItensAddRemote(cargaId, itensNovosPorCarga[cargaId]); });
+
         currentCargaId = null;
-        saveState(Object.keys(idsAfetados));
+        saveState();
         toast(cargasNovas+" carga(s) nova(s), "+itensNovos+" item(ns) adicionado(s)"+(itensIgnorados>0 ? ", "+itensIgnorados+" já existente(s) ignorado(s)." : "."));
       }catch(err){
         console.error(err);
@@ -1320,7 +1402,7 @@
     var refs = Object.keys(selectedItems);
     if(refs.length===0){ toast("Selecione pelo menos um item.", true); return; }
     if(!status){ toast("Selecione o novo status.", true); return; }
-    var idsAfetados = {};
+    var itensPorCarga = {};
     refs.forEach(function(ref){
       var parts = ref.split("|");
       var carga = getCarga(parts[0]);
@@ -1329,12 +1411,15 @@
       if(item){
         item.status = status;
         item.atualizadoEm = Date.now();
-        idsAfetados[parts[0]] = true;
+        (itensPorCarga[parts[0]] = itensPorCarga[parts[0]]||[]).push(item);
       }
+    });
+    Object.keys(itensPorCarga).forEach(function(cargaId){
+      syncItensUpdateRemote(cargaId, itensPorCarga[cargaId]);
     });
     selectedItems = {};
     document.getElementById("statusEmMassa").value = "";
-    saveState(Object.keys(idsAfetados));
+    saveState();
     toast(refs.length + (refs.length===1 ? " item atualizado." : " itens atualizados."));
   }
 
@@ -1368,17 +1453,21 @@
       } else {
         var carga = getCarga(currentCargaId);
         if(!carga){ toast("Inicie uma carga antes de colar vários itens.", true); return; }
+        var novosItensColados = [];
         lines.forEach(function(line){
           var p = parseLine(line);
           if(!p.plu && !p.descricao) return;
-          carga.itens.push({
+          var novoItem = {
             id: uid(), plu:p.plu, descricao:p.descricao, embalagem:p.embalagem, quantidadeRecebida:p.quantidade,
             quantidadeGerada:"", lote:"", tipoCarga:"", caixasCozinha:"", caixasDevolvidas:"", nfDevolucao:"", nfDevolucaoAssinada:"",
             status:"Em contagem", nfEntrada:"", horarioGeracao:"", observacao:"", criadoEm: Date.now()
-          });
+          };
+          carga.itens.push(novoItem);
+          novosItensColados.push(novoItem);
         });
         area.value = "";
-        saveState([currentCargaId]);
+        syncItensAddRemote(currentCargaId, novosItensColados);
+        saveState();
         saveDraft();
         toast(lines.length + " itens adicionados. Complete os campos pendentes na lista abaixo.");
       }
@@ -1431,10 +1520,11 @@
     adicionarFornecedor(fornecedor);
     state.cargas.push(carga);
     currentCargaId = carga.id;
+    criarCargaRemota(carga);
     document.getElementById("cgNumero").value = "";
     document.getElementById("cgFornecedor").value = "";
     document.getElementById("cgData").value = todayISO();
-    saveState([carga.id]);
+    saveState();
     saveDraft();
     toast("Carga iniciada. Agora adicione os itens.");
     document.getElementById("itPlu").focus();
@@ -1487,7 +1577,8 @@
     };
     carga.itens.push(item);
     limparFormItem();
-    saveState([currentCargaId]);
+    syncItemAddRemote(currentCargaId, item);
+    saveState();
     saveDraft();
     var miss = missingFields(item);
     toast(miss.length>0 ? "Item adicionado com "+miss.length+" campo(s) pendente(s)." : "Item adicionado.");
@@ -1688,7 +1779,8 @@
     item.atualizadoEm = Date.now();
     var cargaIdSalva = editItemRef.cargaId;
     fecharModalItem();
-    saveState([cargaIdSalva]);
+    syncItemUpdateRemote(cargaIdSalva, item.id, item);
+    saveState();
     toast("Item atualizado.");
   });
 
@@ -1704,7 +1796,8 @@
     if(!carga) return;
     if(!confirm("Excluir este item? Esta ação não pode ser desfeita.")) return;
     carga.itens = carga.itens.filter(function(it){ return it.id!==itemId; });
-    saveState([cargaId]);
+    syncItemDeleteRemote(cargaId, itemId);
+    saveState();
     toast("Item excluído.");
   }
 
@@ -1736,7 +1829,12 @@
     carga.numeroCarga = document.getElementById("ecNumero").value.trim();
     carga.fornecedor = fornecedor;
     fecharModalCarga();
-    saveState([cargaId]);
+    syncCargaHeaderRemote(cargaId, {
+      fornecedor: fornecedor,
+      dataRecebimento: carga.dataRecebimento,
+      numeroCarga: carga.numeroCarga
+    });
+    saveState();
     toast("Dados da carga atualizados.");
   });
 
